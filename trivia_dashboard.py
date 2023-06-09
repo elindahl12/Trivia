@@ -8,11 +8,15 @@ __version__ = "0.1.0"
 __license__ = "Private"
 
 
+import typing
+from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QDateTime, QTimer
 from PyQt6.QtWidgets import *
 import sys
 from random import shuffle
 import sqlite3
+
+from PyQt6.QtWidgets import QWidget
 
 class GameDashboard(QMainWindow):
 
@@ -26,7 +30,7 @@ class GameDashboard(QMainWindow):
         self.types = []
         self.current_teams = [] 
         #^List of dictionaries -- layout: {'team': '', 'players': '', 'bonus': '', 'r1': '', 'r2': '', 'r3': '', 'r4': '', 'r5': '', 'total': '',}
-        self.question_scores = [] #List of dictionaries -- layout {'team': '', 'q1': '', 'q2': '', 'q3': '', 'q4': '', 'q5': '', 'total': '', }
+        #self.question_scores = [] #List of dictionaries -- layout {'team': '', 'q1': '', 'q2': '', 'q3': '', 'q4': '', 'q5': '', 'total': '', }
         self.questions = []
         self.filtered_questions = self.questions
         
@@ -119,15 +123,12 @@ class GameDashboard(QMainWindow):
         #Create current team widget
         self.current_team_label = QLabel('Current Teams')
         self.team_info_tab_layout.addWidget(self.current_team_label, 3, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
-        self.current_team_list = QListWidget()
+        self.current_team_list = QWidget()
         self.current_team_list.setFixedWidth(500)
-        self.current_team_list.setStyleSheet('font: 16px;')
+        self.current_team_list_layout = QVBoxLayout()
+        self.current_team_list.setLayout(self.current_team_list_layout)
         self.team_info_tab_layout.addWidget(self.current_team_list, 4, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
-        self.remove_team_button = QPushButton('Remove Team')
-        self.remove_team_button.clicked.connect(self.remove_team)
-        self.remove_team_button.setFixedWidth(120)
-        self.remove_team_button.setDisabled(True)
-        self.team_info_tab_layout.addWidget(self.remove_team_button, 5, 1, 1, 1, Qt.AlignmentFlag.AlignCenter)
+        
     #create Game Builder tab
         self.game_builder_tab = QWidget()
         self.game_builder_tab_layout = QGridLayout()
@@ -283,7 +284,6 @@ class GameDashboard(QMainWindow):
         self.game_section.addWidget(self.wager_page)
         self.game_section.addWidget(self.game_over)
         self.game_section.setMinimumSize(550, 400)
-        
         self.game_control_layout.addWidget(self.game_section, 1, 3, 1, 2)
     #Create the leaderboard section to hold the score widgets
         self.leader_widget = QWidget()
@@ -344,63 +344,71 @@ class GameDashboard(QMainWindow):
             self.error_label.setText('*Number can\'t start with zero*')
 
         else:
+                check = self.team_info_tab_layout.itemAtPosition(4, 0).widget()
+                if check is not None:
+                    self.team_info_tab_layout.removeWidget(check)
+                    check.deleteLater()
+
+                self.current_team_list = QWidget()
+                self.current_team_list.setFixedWidth(500)
+                self.current_team_list_layout = QVBoxLayout()
+                self.current_team_list.setLayout(self.current_team_list_layout)
+                self.team_info_tab_layout.addWidget(self.current_team_list, 4, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+
                 self.error_label.setText('')
                 current_team_name = self.team_name.currentText()
                 players = self.player_number.text()
                 bonus = self.bonus_pts.text()
-                self.current_team_list.clear()
                 self.current_teams.append({'team': current_team_name, 'players': players, 'bonus': bonus, 'r1': '0', 'r2': '0', 'r3': '0', 'r4': '0', 'r5': '0', 'total': bonus})
-
+                
                 for i in self.current_teams:
 
                     index = self.current_teams.index(i)
                     name = i['team']
-                    players = i['players']
-                    bonus = i['bonus']
-                    index_team_name = f'{index + 1}. {name}\tPlayers: {players}\tBonus Points: {bonus}'
-                    self.current_team_list.addItem(index_team_name)
-
+                    score = i['total']
+                    self.team_widget = TeamWidget(index, name, score)
+                    self.team_widget.remove_button.clicked.connect(self.remove_team)
+                    self.current_team_list_layout.addWidget(self.team_widget)
+                    
+                
                 self.team_name.setCurrentText('')
                 self.player_number.clear()
                 self.bonus_pts.setText('0')
-        self.remove_team_button.setDisabled(False)
         self.create_score_entry()
-#remove the team from game
-    def remove_team(self):
+
+    def remove_team(self): #remove the team from game
         
-        if self.current_team_list.currentItem() is None:
-            pass
-        else:
-            team = self.current_team_list.currentItem()
-            team_text = team.text()
-            team_name = team_text.split()
-            for i in team_name:
-                print(i)
-
-            self.current_team_list.takeItem(self.current_team_list.row(team))
-            for i, d in enumerate(self.current_teams):
-                if d['team'] == team_name:
-                    self.current_teams.pop(i)
-
-        if len(self.current_team_list) is 0:
-            self.remove_team_button.setDisabled(True)
-
+        for w in self.current_team_list.children():
+            for child in w.children():
+                if child == self.sender():
+                        team = w.children()[2].text()
+        
+        for i in self.current_teams:
+            if i['team'] == team:
+                self.current_teams.remove(i)
+        
         check = self.team_info_tab_layout.itemAtPosition(4, 0).widget()
         if check is not None:
             self.team_info_tab_layout.removeWidget(check)
             check.deleteLater()
-        self.current_team_list = QListWidget()
+
+        self.current_team_list = QWidget()
         self.current_team_list.setFixedWidth(500)
-        self.new_list = []
-        for i, d in enumerate(self.current_teams):
-            index = i
-            name = d['team']
-            players = d['players']
-            bonus = d['bonus']
-            self.new_list.append(f'{index + 1}. {name}\tPlayers: {players}\tBonus Points: {bonus}')
-        self.current_team_list.addItems(self.new_list)
+        self.current_team_list_layout = QVBoxLayout()
+        self.current_team_list.setLayout(self.current_team_list_layout)
         self.team_info_tab_layout.addWidget(self.current_team_list, 4, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+
+        for i in self.current_teams:
+
+            index = self.current_teams.index(i)
+            name = i['team']
+            score = i['total']
+            self.team_widget = TeamWidget(index, name, score)
+            self.team_widget.remove_button.clicked.connect(self.remove_team)
+            self.current_team_list_layout.addWidget(self.team_widget)
+
         self.create_score_entry()
+
 #creates a widget with team name, and round scores, and option for adding or subtracting scores
 # for the scores section in the game controller tab
     def create_score_entry(self):
@@ -543,37 +551,32 @@ class GameDashboard(QMainWindow):
         item = self.question_pool.currentItem()
         if item is not None:
             new_question = item.text()
-        child_widgets = self.game_layout_widget.children()
         current_index = None
-        for widget in child_widgets:
-            gw_widget = widget
-            gw_type = type(gw_widget)
-            if gw_type == QListWidget:
+        for widget in self.game_layout_widget.children(): 
+            if type(widget) == QListWidget:
                 for gw_item in widget.selectedItems():
                     if gw_item is not None:
-                        current_index = gw_widget.row(gw_item)
+                        current_index = widget.row(gw_item)
                         if current_index != int(self.qpr_num.currentText()) - 1:
                             gw_item.setText(f'{current_index + 1}. {new_question}')
                         else:
                             gw_item.setText(f'W. {new_question}')
-                        gw_widget.clearSelection()
+                        widget.clearSelection()
         self.question_pool.clearSelection()
 #removes selected question from game preview area when called
     def remove_question(self):
         child_widgets = self.game_layout_widget.children()
         current_index = None
         for widget in child_widgets:
-            gw_widget = widget
-            gw_type = type(gw_widget)
-            if gw_type == QListWidget:
+            if type(widget) == QListWidget:
                 for gw_item in widget.selectedItems():
                     if gw_item is not None:
-                        current_index = gw_widget.row(gw_item)
+                        current_index = widget.row(gw_item)
                         if current_index != int(self.qpr_num.currentText()) - 1:
                             gw_item.setText(f'{current_index + 1}. (Empty)')
                         else:
                             gw_item.setText(f'W. (Empty)')
-                        gw_widget.clearSelection()
+                        widget.clearSelection()
 #automatically and randomly chooses questions for the selected number of rounds and questions per round and adds replaces the old
 #questions in the game preview section
     def auto_question_generator(self):
@@ -725,6 +728,10 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
     # the file name should be labeled as follows: mm-dd-yyyy-location
         if self.leaderboard_button.text() == 'Hide Leaderboard':
             self.leaderboard_button.setText('Show Leaderboard')
+        if self.leaderboard_toggle %2:
+            pass
+        else:
+            self.leaderboard_toggle += 1
 
     # Check to see if the current round is less than or equal to the total rounds in the game
         if self.round_counter <= self.total_round_selection:
@@ -743,6 +750,7 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
                     self.player_screen.main_widget.setCurrentIndex(1)
                 self.stage_counter += 1
                 self.start_button.setText('Show Question')
+                
             elif self.stage_counter is 2:
             #if its the last question in the round, check to see what the current index is.
                 self.leaderboard_button.setDisabled(False)
@@ -783,6 +791,9 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
                         self.show_answer_button.setDisabled(False)
                 #if the current index is showing the previous round's scores, show the wager rules
                     elif self.game_section.currentIndex() is 4:
+                        self.game_section.setCurrentIndex(5)
+                        self.player_screen.main_widget.setCurrentIndex(5)
+                    elif self.game_section.currentIndex() is 1:
                         self.game_section.setCurrentIndex(5)
                         self.player_screen.main_widget.setCurrentIndex(5)
             #if not last question in the round, just show the question
@@ -947,13 +958,13 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
             self.game_section.setCurrentIndex(4)
             self.player_screen.main_widget.setCurrentIndex(4)
             self.leaderboard_button.setText('Hide Leaderboard')
-            self.leaderboard_toggle +=1 
+             
         else:
             if self.game_section.currentIndex() != 4:
                 self.game_section.setCurrentIndex(self.stage_counter - 1)
                 self.player_screen.main_widget.setCurrentIndex(self.stage_counter - 1)
             self.leaderboard_button.setText('Show Leaderboard')
-            self.leaderboard_toggle +=1
+        self.leaderboard_toggle +=1
             
 class PlayerScreen(QMainWindow):
     def __init__(self, teams, rules):
@@ -977,6 +988,28 @@ class PlayerScreen(QMainWindow):
         self.main_widget.addWidget(self.wager_page)
         self.main_widget.addWidget(self.game_over)
         self.setCentralWidget(self.main_widget)
+
+class TeamWidget(QWidget):
+    def __init__(self, index, team, score):
+        super().__init__()
+        self.team_num = index + 1
+        self.team = team
+        self.score = score
+
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+
+        self.index_label = QLabel(f'{self.team_num}.')
+        self.index_label.setFixedWidth(30)
+        self.team_label = QLabel(self.team)
+        self.score_label = QLabel(f'Points: {self.score}')
+        self.remove_button = QPushButton('X')
+        self.remove_button.setFixedWidth(50)
+
+        self.layout.addWidget(self.index_label)
+        self.layout.addWidget(self.team_label)
+        self.layout.addWidget(self.score_label)
+        self.layout.addWidget(self.remove_button)
 
 class ScoreWidget(QWidget):
     def __init__(self, team, index, score, rounds):
@@ -1212,12 +1245,14 @@ class FillInBlankAnswer(QWidget):
         main_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.question = QLabel(f'Fill in the Blank: \n{self.question}')
         self.question.setWordWrap(True)
-        if self.answer2 and self.answer3 == '':
+        
+        if self.answer2 == '' and self.answer3 == '':
             self.answer_label = QLabel(f'{self.answer1}')
         elif self.answer3 == '':
             self.answer_label = QLabel(f'{self.answer1}, {self.answer2}')
         else:
             self.answer_label = QLabel(f'{self.answer1}, {self.answer2}, {self.answer3}')
+    
         self.answer_label.setWordWrap(True)
         main_layout.addWidget(self.question)
         main_layout.addWidget(self.answer_label)
@@ -1270,7 +1305,7 @@ class Leaderboard(QWidget):
             self.header_layout.addWidget(self.total_label, 0, Qt.AlignmentFlag.AlignRight)
             
             self.placement = self.team_score()
-            self.layout.addWidget(self.placement, 0, Qt.AlignmentFlag.AlignRight)
+            
         
         self.setLayout(self.layout)
     
