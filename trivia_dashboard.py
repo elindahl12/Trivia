@@ -48,6 +48,7 @@ class GameDashboard(QMainWindow):
         self.create_game_toggle = 1
         self.start_pause_button_text_toggle = 1
         self.leaderboard_toggle = 1
+        self.rules_toggle = 1
         self.round_counter = 1
         self.question_counter = 1
         self.question_index = 0
@@ -312,6 +313,9 @@ class GameDashboard(QMainWindow):
         self.show_answer_button.setStyleSheet('''background-color: red;
                                                 ''')
         self.game_control_layout.addWidget(self.show_answer_button, 5, 3, 1, 2)
+        self.rules_button = QPushButton('Show Rules')
+        self.rules_button.clicked.connect(self.toggle_rules_page)
+        self.game_control_layout.addWidget(self.rules_button, 7, 4, 1, 1)
     #add section for game master notes
         
         self.tabWidget.addTab(self.controller_tab, 'Game Controller')
@@ -546,8 +550,8 @@ class GameDashboard(QMainWindow):
         self.arb_layout.addWidget(self.remove_question_button)
         self.man_question_widget_layout.addWidget(self.add_remove_buttons, 1, 1, 1, 1, Qt.AlignmentFlag.AlignCenter)
         self.game_builder_tab_layout.addWidget(self.man_question_widget, 6, 0, 1, 2)
-#transfers the selected question from the manual question list to the selected question in the game preview area when called
-    def add_question(self):
+
+    def add_question(self):#transfers the selected question from the manual question list to the selected question in the game preview area when called
         item = self.question_pool.currentItem()
         if item is not None:
             new_question = item.text()
@@ -563,8 +567,8 @@ class GameDashboard(QMainWindow):
                             gw_item.setText(f'W. {new_question}')
                         widget.clearSelection()
         self.question_pool.clearSelection()
-#removes selected question from game preview area when called
-    def remove_question(self):
+
+    def remove_question(self):#removes selected question from game preview area when called
         child_widgets = self.game_layout_widget.children()
         current_index = None
         for widget in child_widgets:
@@ -639,9 +643,6 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
         if self.player_screen_toggle % 2:
             self.player_screen.hide()
             self.player_screen_button.setText('Show Player Screen')
-            if self.start_button.text() == 'Pause Game':
-                self.start_button.setText('Resume Game')
-                self.start_pause_button_text_toggle += 1
             self.start_button.setDisabled(True)
             self.player_screen_toggle = self.player_screen_toggle + 1
         else:
@@ -723,7 +724,7 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
 
 # Moves between windows or "Stages" of the game when the start_pause_button and show_answer_button are clicked.
     def game_engine(self):
-    # check to see if the start button's text is "End Game". if so game is over and the stats will be saved to a log file stored in folder called Previous games
+    # TODO: check to see if the start button's text is "End Game". if so game is over and the stats will be saved to a log file stored in folder called Previous games
     # the file will contain the teams that competed, total number of players they had for that game, and total score.
     # the file name should be labeled as follows: mm-dd-yyyy-location
         if self.leaderboard_button.text() == 'Hide Leaderboard':
@@ -732,10 +733,33 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
             pass
         else:
             self.leaderboard_toggle += 1
+        if self.rules_button.text() == "Hide Rules":
+            self.rules_button.setText('Show Rules')
+        if self.rules_toggle %2:
+            pass
+        else:
+            self.rules_toggle += 1
 
     # Check to see if the current round is less than or equal to the total rounds in the game
         if self.round_counter <= self.total_round_selection:
-            if self.stage_counter is 1:  
+            if self.stage_counter is 1:
+            #Change the selected round in the score widget automatically
+                for widget in self.leader_widget.children():
+                    if type(widget) is ScoreWidget:
+                        for item in widget.children():
+                            if type(item) is QPushButton:
+                                if self.round_counter == 1 and widget.children().index(item) == (self.round_counter + 2):
+                                    item.setChecked(True)
+                                elif self.round_counter == 2  and widget.children().index(item) == (self.round_counter + 3):
+                                    item.setChecked(True)
+                                elif self.round_counter == 3  and widget.children().index(item) == (self.round_counter + 4):
+                                    item.setChecked(True)
+                                elif self.round_counter == 4  and widget.children().index(item) == (self.round_counter + 5):
+                                    item.setChecked(True)
+                                elif self.round_counter == 5  and widget.children().index(item) == (self.round_counter + 6):
+                                    item.setChecked(True)
+                                else:
+                                    item.setChecked(False)
             #If its the final round, print final round, otherwise print the current round
                 self.leaderboard_button.setDisabled(False)
                 if self.round_counter == self.total_round_selection:
@@ -937,6 +961,12 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
 
     
     def show_leaderboard_toggle(self):
+        if self.rules_button.text() == "Hide Rules":
+            self.rules_button.setText('Show Rules')
+        if self.rules_toggle %2:
+            pass
+        else:
+            self.rules_toggle += 1
     #update the scores
         self.update_score()
     #define lists to store teams and scores
@@ -965,6 +995,26 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
                 self.player_screen.main_widget.setCurrentIndex(self.stage_counter - 1)
             self.leaderboard_button.setText('Show Leaderboard')
         self.leaderboard_toggle +=1
+
+    def toggle_rules_page(self):
+        if self.leaderboard_button.text() == "Hide Leaderboard":
+            self.leaderboard_button.setText('Show Leaderboard')
+            self.leaderboard_toggle += 1
+        if self.leaderboard_toggle %2:
+            pass
+        else:
+            self.leaderboard_toggle += 1
+        if self.rules_toggle %2:
+            self.game_section.setCurrentIndex(0)
+            self.player_screen.main_widget.setCurrentIndex(0)
+            self.rules_button.setText('Hide Rules')
+            self.rules_toggle += 1
+        else:
+            self.game_section.setCurrentIndex(self.stage_counter - 1)
+            self.player_screen.main_widget.setCurrentIndex(self.stage_counter - 1)
+            self.rules_button.setText('Show Rules')
+            self.rules_toggle += 1
+
             
 class PlayerScreen(QMainWindow):
     def __init__(self, teams, rules):
