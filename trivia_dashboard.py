@@ -13,7 +13,7 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QDateTime, QTimer
 from PyQt6.QtWidgets import *
 import sys
-from random import shuffle
+from random import shuffle, choice
 import sqlite3
 
 from PyQt6.QtWidgets import QWidget
@@ -378,6 +378,7 @@ class GameDashboard(QMainWindow):
                 self.team_name.setCurrentText('')
                 self.player_number.clear()
                 self.bonus_pts.setText('0')
+                self.team_name.setFocus()
         self.create_score_entry()
 
     def remove_team(self): #remove the team from game
@@ -913,16 +914,66 @@ Slots Requested: {(int(self.num_round.currentText()) * int(self.qpr_num.currentT
                     self.round_counter += 1
                     self.question_counter = 1
                     self.stage_counter = 1
-                    self.start_button.setText('Next Round')
+                    if self.round_counter > self.total_round_selection:
+                        self.start_button.setText('Tie Breaker Check')
+                    else:
+                        self.start_button.setText('Next Round')
                 else:
                     self.start_button.setText('Next Question')
                     self.stage_counter = 2
-        #if the current round is greater than the round selection, show the game over page.         
-        else:
+                 
+        else:#if the current round is greater than the round selection, check to see if there is a tie.
+            #if so, begin tie breaker, otherwise end game
+            self.update_score()
+            self.tie_check = []
+            sorted_teams = sorted(self.current_teams, key=lambda x: x['total'], reverse=True)
+            leader = sorted_teams[0]['total']
+            for team in self.current_teams:
+                if team['total'] == leader:
+                    self.tie_check.append((team['team']))
+            if self.game_section.currentIndex() == 7:
+                self.start_button.setDisabled(True)
+                self.show_answer_button.setDisabled(False)
+                self.game_section.setCurrentIndex(8)
+                self.player_screen.main_widget.setCurrentIndex(8)
+            elif self.game_section.currentIndex() == 8:
+                self.start_button.setText('Show Scores')
+                self.start_button.setDisabled(False)
+                self.show_answer_button.setDisabled(True)
+                self.game_section.setCurrentIndex(9)
+                self.player_screen.main_widget.setCurrentIndex(9)
+            elif len(self.tie_check) > 1:
+                self.start_button.setText('Show Tie Breaker Question')
+                self.tie_breaker()
+                self.game_section.setCurrentIndex(7)
+                self.player_screen.main_widget.setCurrentIndex(7)
+            else:
+                print(f"{self.tie_check[0]} won!")
+                self.game_section.setCurrentIndex(6)
+                self.player_screen.main_widget.setCurrentIndex(6)
+                self.start_button.setText('End and Save Game')
             self.leaderboard_button.setDisabled(False)
-            self.game_section.setCurrentIndex(6)
-            self.player_screen.main_widget.setCurrentIndex(6)
-            self.start_button.setText('End and Save Game')
+
+    def tie_breaker(self):
+        tb_questions = []
+        for question in self.questions:
+            if question['type'] == "Fill in the Blank":
+                try:
+                    if int(question['answer1']):
+                        tb_questions.append(question)
+                except ValueError:
+                    pass
+        shuffle(tb_questions)
+        tb_selected = choice(tb_questions)
+        tb_rules = TieBreakerRules(self.tie_check)
+        self.game_section.addWidget(tb_rules)
+        for i in self.questions:
+            if i == tb_selected:
+                tie_breaker_question = FillInBlankQuestion(i['question'], self.minute_selection, self.second_selection)
+                tie_breaker_answer = FillInBlankAnswer(i['question'], i['answer1'], i['answer2'], i['answer3'])
+                self.game_section.addWidget(tie_breaker_question)
+                self.game_section.addWidget(tie_breaker_answer)
+        
         
     def update_score(self):#grab the values from the buttons in the score widget, update them to the appropriate team in the self.current_teams list
         team = None
@@ -1125,16 +1176,16 @@ class ScoreWidget(QWidget):
                         widget.setChecked(False)
                         team = self.layout.itemAt(0).widget().text().split('. ')[1]
                         
-                        if self.layout.indexOf(widget) == 2:
-                            print('Round 1', widget.text())
-                        elif self.layout.indexOf(widget) == 4:
-                            print('Round 2', widget.text())
-                        elif self.layout.indexOf(widget) == 6:
-                            print('Round 3', widget.text())
-                        elif self.layout.indexOf(widget) == 8:
-                            print('Round 4', widget.text())
-                        elif self.layout.indexOf(widget) == 10:
-                            print('Round 5', widget.text())
+                        # if self.layout.indexOf(widget) == 2:
+                        #     print('Round 1', widget.text())
+                        # elif self.layout.indexOf(widget) == 4:
+                        #     print('Round 2', widget.text())
+                        # elif self.layout.indexOf(widget) == 6:
+                        #     print('Round 3', widget.text())
+                        # elif self.layout.indexOf(widget) == 8:
+                        #     print('Round 4', widget.text())
+                        # elif self.layout.indexOf(widget) == 10:
+                        #     print('Round 5', widget.text())
                         
             self.points_edit.clear()
             self.points_edit.setStyleSheet('background-color: white;')
@@ -1331,6 +1382,30 @@ class Rules(QWidget):
         
         
         self.setLayout(main_layout)
+
+class TieBreakerRules(QWidget):
+    def __init__(self, teams):
+        super().__init__()
+        tie_breaker_rules = ['The question will have an answer that is a number.',
+                             'The game will follow "Price is Right" rules',
+                             'The team that is closest to the correct number, without going over, wins.',
+                             'In the event of a tie, the questions will continue until one team is closer.',
+                             'Teams that are not competing can still play and submit answer for a little extra fun.']
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        title = QLabel('Tie Breaker Rules')
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        for item in tie_breaker_rules:
+            rule = QLabel(item)
+            layout.addWidget(rule)
+        
+        label = QLabel(f"The following teams are tied:")
+        layout.addWidget(label)
+        teams = QLabel(f"{', '.join(teams)}")
+        teams.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(teams)
 
 class Leaderboard(QWidget):
     def __init__(self, teams):
